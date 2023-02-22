@@ -1,9 +1,33 @@
-import os
+import sqlite3
 
 from PyQt5 import uic
 from PyQt5.QtCore import QDate
 from PyQt5.QtGui import QColor, QTextCharFormat
 from PyQt5.QtWidgets import QApplication, QInputDialog, QListWidgetItem, QMessageBox
+
+
+def get_compromissos():
+    conn = sqlite3.connect('agenda.db')
+    conn.execute(
+        '''
+        create table if not exists compromissos(
+            id integer primary key,
+            dia text,
+            hora int, 
+            compromisso text
+        );             
+        '''
+    )
+
+    compromissos = []
+    cursor = conn.execute('select * from compromissos')
+    for i in cursor:
+        formatar(str(i[1]), '#FF3131')  # neon red
+        if i[1] == str(dia):
+            compromissos.append(str(i[2]) + 'h ' + str(i[3]))
+    conn.close()
+
+    return compromissos
 
 
 def confirm(titulo, texto):
@@ -25,18 +49,20 @@ def formatar(d, cor):
 
 def carregar():
     # destaca os dias com compromissos
-    for f in os.listdir('.'):
-        if f.endswith('.dat'):
-            formatar(f.split('.dat')[0], '#FF3131')  # neon red
+    # for f in os.listdir('.'):
+    #     if f.endswith('.dat'):
+    #         formatar(f.split('.dat')[0], '#FF3131')  # neon red
 
     get_dia()  # busca o dia atual
     t.lista.clear()  # limpa a lista
 
-    try:
-        f = open(str(dia) + '.dat', 'r')  # abre o arquivo da data atual
-        compromissos = f.readlines()  # carrega os compromissos do dia
-    except FileNotFoundError as e:
-        compromissos = []  # não há compromissos neste dia
+    # try:
+    #     f = open(str(dia) + '.dat', 'r')  # abre o arquivo da data atual
+    #     compromissos = f.readlines()  # carrega os compromissos do dia
+    # except FileNotFoundError as e:
+    #     compromissos = []  # não há compromissos neste dia
+
+    compromissos = get_compromissos()
 
     # cria a agenda do dia com horários de meia-noite às onze da noite
     for h in range(24):
@@ -67,9 +93,14 @@ def sair():
 
 
 def salvar(compromisso, hora):
-    f = open(str(dia) + '.dat', 'a')  # append
-    f.write(hora + 'h ' + compromisso + '\n')
-    f.close()
+    # f = open(str(dia) + '.dat', 'a')  # append
+    # f.write(hora + 'h ' + compromisso + '\n')
+    # f.close()
+    conn = sqlite3.connect('agenda.db')
+    conn.execute(
+        "insert into compromissos (dia, hora, compromisso) values ('{}',{},'{}')".format(dia, hora, compromisso))
+    conn.commit()
+    conn.close()
 
 
 def editar():
@@ -87,20 +118,26 @@ def excluir():
 
     hora = t.lista.currentItem().text().split('h ')[0]
 
-    f = open(str(dia) + '.dat', 'r+')  # abre o arquivo do dia atual
-    compromissos = f.readlines()  # busca a lista de compromissos do dia
+    # f = open(str(dia) + '.dat', 'r+')  # abre o arquivo do dia atual
+    # compromissos = f.readlines()  # busca a lista de compromissos do dia
+    #
+    # # remove o compromisso da lista
+    # for i, c in enumerate(compromissos):
+    #     prefixo = str(hora) + 'h '
+    #     if c.startswith(prefixo):
+    #         compromissos.pop(i)
+    #         break
+    #
+    # f.seek(0)  # move para o início do arquivo
+    # f.truncate()  # exclui o conteúdo do arquivo
+    # f.writelines(compromissos)  # substitui o conteúdo do arquivo
+    # f.close()  # fecha o arquivo
 
-    # remove o compromisso da lista
-    for i, c in enumerate(compromissos):
-        prefixo = str(hora) + 'h '
-        if c.startswith(prefixo):
-            compromissos.pop(i)
-            break
+    conn = sqlite3.connect('agenda.db')
+    conn.execute("delete from compromissos where dia='{}' and hora={}".format(str(dia), int(hora)))
+    conn.commit()
+    conn.close()
 
-    f.seek(0)  # move para o início do arquivo
-    f.truncate()  # exclui o conteúdo do arquivo
-    f.writelines(compromissos)  # substitui o conteúdo do arquivo
-    f.close()  # fecha o arquivo
     carregar()  # recarrega a lista na tela
 
 
@@ -109,11 +146,23 @@ def nova():
         return
 
     # exclui todos os arquivos com extensão '.dat'
-    for a in os.listdir('.'):
-        if a.endswith('.dat'):
-            formatar(a.split('.dat')[0], 'white')
-            os.remove(a)
+    # for a in os.listdir('.'):
+    #     if a.endswith('.dat'):
+    #         formatar(a.split('.dat')[0], 'white')
+    #         os.remove(a)
     # [os.remove(a) for a in os.listdir('.') if a.endswith('.dat')]
+
+    # limpa a formatação
+    conn = sqlite3.connect('agenda.db')
+    cursor = conn.execute('select * from compromissos')
+    for i in cursor:
+        formatar(str(i[1]), 'white')  # neon red
+
+    #  exclui todos os registros
+    conn.execute("delete from compromissos")
+    conn.commit()
+    conn.close()
+
     carregar()
 
 
